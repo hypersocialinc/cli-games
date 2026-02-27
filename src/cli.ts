@@ -188,9 +188,15 @@ function createNodeTerminal(): NodeTerminal {
     process.stdout.write('\x1b[0m');
   }
 
+  // Synchronized output: wrap writes with DEC sync sequences so the
+  // terminal batches clear + redraw into a single atomic paint.
+  // Supported by Warp, iTerm2, kitty, foot, WezTerm, etc.
+  const SYNC_START = '\x1b[?2026h';
+  const SYNC_END = '\x1b[?2026l';
+
   const terminal: NodeTerminal = {
     write: (data: string) => {
-      process.stdout.write(data);
+      process.stdout.write(SYNC_START + data + SYNC_END);
     },
     get cols() { return process.stdout.columns || 80; },
     get rows() { return process.stdout.rows || 24; },
