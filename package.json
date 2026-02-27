@@ -1,0 +1,65 @@
+{
+  "name": "@hypersocial/cli-games",
+  "version": "0.1.0",
+  "description": "Terminal games for xterm.js and CLI — snake, 2048, pong, asteroids, tetris, and more",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "cli-games": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./themes": {
+      "types": "./dist/themes.d.ts",
+      "import": "./dist/themes.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@xterm/xterm": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@xterm/xterm": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@xterm/xterm": "^6.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hypersocialinc/cli-games.git"
+  },
+  "keywords": [
+    "terminal",
+    "games",
+    "cli",
+    "xterm",
+    "snake",
+    "tetris",
+    "2048",
+    "pong",
+    "asteroids"
+  ],
+  "author": "Hypersocial Inc."
+}
