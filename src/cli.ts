@@ -6,7 +6,40 @@
  * games to run directly in any terminal emulator.
  */
 
-import { games, setTheme, type GameInfo } from './games';
+// ---------------------------------------------------------------------------
+// Window polyfill — MUST run before any game code is imported.
+// Games use window.addEventListener('keydown'/'keyup'), window.dispatchEvent,
+// and new CustomEvent.
+// ---------------------------------------------------------------------------
+
+type EventHandler = (event: Event) => void;
+const eventListeners = new Map<string, Set<EventHandler>>();
+
+const windowPolyfill = {
+  addEventListener(type: string, handler: EventHandler) {
+    if (!eventListeners.has(type)) eventListeners.set(type, new Set());
+    eventListeners.get(type)!.add(handler);
+  },
+  removeEventListener(type: string, handler: EventHandler) {
+    eventListeners.get(type)?.delete(handler);
+  },
+  dispatchEvent(event: Event): boolean {
+    const handlers = eventListeners.get(event.type);
+    if (handlers) {
+      for (const handler of handlers) {
+        handler(event);
+      }
+    }
+    return true;
+  },
+};
+
+if (typeof globalThis.window === 'undefined') {
+  (globalThis as Record<string, unknown>).window = windowPolyfill;
+}
+
+// Now safe to import game code
+import { games, setTheme, showGamesMenu, type GameInfo, GAME_EVENTS } from './games';
 import type { PhosphorMode } from './themes';
 
 // ---------------------------------------------------------------------------
@@ -17,6 +50,8 @@ interface KeyEvent {
   key: string;
   domEvent: {
     key: string;
+    code: string;
+    keyCode: number;
     preventDefault: () => void;
     stopPropagation: () => void;
   };
@@ -37,38 +72,65 @@ interface NodeTerminal {
 }
 
 /**
+ * Map of key names to approximate keyCodes (for games that check keyCode)
+ */
+const KEY_CODES: Record<string, number> = {
+  ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39,
+  Enter: 13, Escape: 27, ' ': 32, Backspace: 8, Tab: 9,
+  a: 65, b: 66, c: 67, d: 68, e: 69, f: 70, g: 71, h: 72,
+  i: 73, j: 74, k: 75, l: 76, m: 77, n: 78, o: 79, p: 80,
+  q: 81, r: 82, s: 83, t: 84, u: 85, v: 86, w: 87, x: 88,
+  y: 89, z: 90, '1': 49, '2': 50, '3': 51, '4': 52, '5': 53,
+  '6': 54, '7': 55, '8': 56, '9': 57, '0': 48,
+};
+
+/**
  * Parse raw stdin escape sequences into key names
  * compatible with DOM KeyboardEvent.key values
  */
 function parseKey(data: string): string {
-  // Arrow keys
   if (data === '\x1b[A' || data === '\x1bOA') return 'ArrowUp';
   if (data === '\x1b[B' || data === '\x1bOB') return 'ArrowDown';
   if (data === '\x1b[C' || data === '\x1bOC') return 'ArrowRight';
   if (data === '\x1b[D' || data === '\x1bOD') return 'ArrowLeft';
-
-  // Special keys
   if (data === '\r' || data === '\n') return 'Enter';
   if (data === '\x1b') return 'Escape';
   if (data === ' ') return ' ';
   if (data === '\x7f' || data === '\b') return 'Backspace';
   if (data === '\t') return 'Tab';
-
-  // Ctrl+C
   if (data === '\x03') return 'c';
-
-  // Regular characters
   if (data.length === 1) return data;
-
   return data;
 }
+
+function createDomEvent(key: string) {
+  const keyCode = KEY_CODES[key] || KEY_CODES[key.toLowerCase()] || 0;
+  return {
+    key,
+    code: key.length === 1 ? `Key${key.toUpperCase()}` : key,
+    keyCode,
+    which: keyCode,
+    preventDefault: () => {},
+    stopPropagation: () => {},
+    stopImmediatePropagation: () => {},
+    // Properties games might check
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    metaKey: false,
+    repeat: false,
+    type: 'keydown',
+  };
+}
+
+// Track held keys for keyup simulation
+const heldKeys = new Map<string, ReturnType<typeof setTimeout>>();
 
 function createNodeTerminal(): NodeTerminal {
   const keyListeners: ((event: KeyEvent) => void)[] = [];
   const dataListeners: ((data: string) => void)[] = [];
   const resizeListeners: ((size: { cols: number; rows: number }) => void)[] = [];
 
-  // Set up raw mode stdin
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
   }
@@ -76,31 +138,41 @@ function createNodeTerminal(): NodeTerminal {
   process.stdin.setEncoding('utf8');
 
   process.stdin.on('data', (data: string) => {
-    // Ctrl+C always exits
     if (data === '\x03') {
       cleanup();
       process.exit(0);
     }
 
     const key = parseKey(data);
-    const domEvent = {
-      key,
-      preventDefault: () => {},
-      stopPropagation: () => {},
-    };
+    const domEvent = createDomEvent(key);
 
-    for (const listener of keyListeners) {
+    // Dispatch keydown on window (Tetris/Chopper use this)
+    const keydownEvent = Object.assign(new Event('keydown'), domEvent);
+    windowPolyfill.dispatchEvent(keydownEvent);
+
+    // Simulate keyup after a short delay (no key-release in raw stdin)
+    if (heldKeys.has(key)) {
+      clearTimeout(heldKeys.get(key)!);
+    }
+    heldKeys.set(key, setTimeout(() => {
+      const keyupEvent = Object.assign(new Event('keyup'), { ...domEvent, type: 'keyup' });
+      windowPolyfill.dispatchEvent(keyupEvent);
+      heldKeys.delete(key);
+    }, 80));
+
+    // Fire terminal.onKey listeners
+    for (const listener of [...keyListeners]) {
       listener({ key, domEvent });
     }
 
-    for (const listener of dataListeners) {
+    for (const listener of [...dataListeners]) {
       listener(data);
     }
   });
 
   process.stdout.on('resize', () => {
     const size = { cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 };
-    for (const listener of resizeListeners) {
+    for (const listener of [...resizeListeners]) {
       listener(size);
     }
   });
@@ -110,10 +182,9 @@ function createNodeTerminal(): NodeTerminal {
       process.stdin.setRawMode(false);
     }
     process.stdin.pause();
-    // Restore terminal state
-    process.stdout.write('\x1b[?1049l'); // Exit alternate buffer
-    process.stdout.write('\x1b[?25h');   // Show cursor
-    process.stdout.write('\x1b[0m');     // Reset colors
+    process.stdout.write('\x1b[?1049l');
+    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[0m');
   }
 
   const terminal: NodeTerminal = {
@@ -122,7 +193,7 @@ function createNodeTerminal(): NodeTerminal {
     },
     get cols() { return process.stdout.columns || 80; },
     get rows() { return process.stdout.rows || 24; },
-    element: {}, // Truthy value for isTerminalValid check
+    element: {}, // Truthy for isTerminalValid check
     onKey: (callback: (event: KeyEvent) => void): Disposable => {
       keyListeners.push(callback);
       return {
@@ -152,7 +223,6 @@ function createNodeTerminal(): NodeTerminal {
     },
   };
 
-  // Clean up on exit
   process.on('exit', cleanup);
   process.on('SIGINT', () => { cleanup(); process.exit(0); });
   process.on('SIGTERM', () => { cleanup(); process.exit(0); });
@@ -161,145 +231,46 @@ function createNodeTerminal(): NodeTerminal {
 }
 
 // ---------------------------------------------------------------------------
-// CLI Menu
+// Game lifecycle
 // ---------------------------------------------------------------------------
 
-function showMenu(terminal: NodeTerminal) {
-  let selectedIndex = 0;
-  const themeColor = '\x1b[96m'; // Cyan
-  const reset = '\x1b[0m';
-
-  function render() {
-    let output = '\x1b[2J\x1b[H'; // Clear screen
-
-    const cols = terminal.cols;
-    const rows = terminal.rows;
-
-    // Title
-    const title = [
-      '█▀▀ █   █   █▀▀ ▄▀█ █▀▄▀█ █▀▀ █▀',
-      '█▄▄ █▄▄ █   █▄█ █▀█ █ ▀ █ ██▄ ▄█',
-    ];
-    const titleX = Math.max(1, Math.floor((cols - title[0].length) / 2));
-    output += `\x1b[2;${titleX}H${themeColor}\x1b[1m${title[0]}${reset}`;
-    output += `\x1b[3;${titleX}H${themeColor}\x1b[1m${title[1]}${reset}`;
-
-    const subtitle = `${games.length} terminal games — pick one to play`;
-    output += `\x1b[5;${Math.max(1, Math.floor((cols - subtitle.length) / 2))}H\x1b[2m${subtitle}${reset}`;
-
-    // Game list
-    const startY = 7;
-    const maxVisible = Math.min(games.length, rows - startY - 3);
-    let scrollOffset = 0;
-    if (selectedIndex >= scrollOffset + maxVisible) {
-      scrollOffset = selectedIndex - maxVisible + 1;
+function setupGameEvents(terminal: NodeTerminal) {
+  // Listen for game quit/switch/menu events dispatched via window
+  windowPolyfill.addEventListener(GAME_EVENTS.QUIT, () => {
+    setTimeout(() => openMenu(terminal), 100);
+  });
+  windowPolyfill.addEventListener(GAME_EVENTS.SWITCH, () => {
+    // Launch a random game
+    const randomGame = games[Math.floor(Math.random() * games.length)];
+    setTimeout(() => launchGame(terminal, randomGame), 100);
+  });
+  windowPolyfill.addEventListener(GAME_EVENTS.GAMES_MENU, () => {
+    setTimeout(() => openMenu(terminal), 100);
+  });
+  windowPolyfill.addEventListener(GAME_EVENTS.LAUNCH_GAME, ((event: CustomEvent) => {
+    const gameId = event.detail?.gameId;
+    const game = games.find(g => g.id === gameId);
+    if (game) {
+      setTimeout(() => launchGame(terminal, game), 100);
     }
-    if (selectedIndex < scrollOffset) {
-      scrollOffset = selectedIndex;
-    }
+  }) as EventHandler);
+}
 
-    for (let i = 0; i < maxVisible; i++) {
-      const idx = scrollOffset + i;
-      const game = games[idx];
-      const isSelected = idx === selectedIndex;
-      const prefix = isSelected ? '▶' : ' ';
-      const style = isSelected ? '\x1b[1;93m' : '\x1b[2m';
-      const numDisplay = idx + 1 <= 9 ? `${idx + 1}` : ' ';
-      const line = `${prefix} [${numDisplay}] ${game.name.padEnd(18)} ${game.description}`;
-      const lineX = Math.max(1, Math.floor((cols - 50) / 2));
-      output += `\x1b[${startY + i};${lineX}H${style}${line}${reset}`;
-    }
-
-    // Controls
-    const controls = '↑↓ Navigate | ENTER Play | 1-9 Quick Select | Q Quit';
-    output += `\x1b[${rows - 1};${Math.max(1, Math.floor((cols - controls.length) / 2))}H\x1b[2m${controls}${reset}`;
-
-    terminal.write(output);
-  }
-
-  // Enter alternate buffer
-  terminal.write('\x1b[?1049h');
-  terminal.write('\x1b[?25l');
-
-  render();
-
-  const keyListener = terminal.onKey(({ domEvent }) => {
-    const key = domEvent.key;
-
-    if (key === 'q' || key === 'Q') {
-      keyListener.dispose();
-      terminal.write('\x1b[?1049l');
-      terminal.write('\x1b[?25h');
+function openMenu(terminal: NodeTerminal) {
+  // Use the exact same games menu from the library
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  showGamesMenu(terminal as any, {
+    onGameSelect: (gameId: string) => {
+      const game = games.find(g => g.id === gameId);
+      if (game) launchGame(terminal, game);
+    },
+    onQuit: () => {
       process.exit(0);
-    }
-
-    if (key === 'ArrowUp') {
-      selectedIndex = (selectedIndex - 1 + games.length) % games.length;
-      render();
-      return;
-    }
-
-    if (key === 'ArrowDown') {
-      selectedIndex = (selectedIndex + 1) % games.length;
-      render();
-      return;
-    }
-
-    if (key === 'Enter') {
-      keyListener.dispose();
-      launchGame(terminal, games[selectedIndex]);
-      return;
-    }
-
-    // Quick select 1-9
-    const num = parseInt(key);
-    if (num >= 1 && num <= 9 && num <= games.length) {
-      keyListener.dispose();
-      launchGame(terminal, games[num - 1]);
-      return;
-    }
+    },
   });
 }
 
 function launchGame(terminal: NodeTerminal, game: GameInfo) {
-  // Clear screen before game
-  terminal.write('\x1b[?1049l');
-  terminal.write('\x1b[?25h');
-
-  // Override window.dispatchEvent for CLI (games use it to signal quit/switch)
-  const originalDispatchEvent = typeof globalThis.window !== 'undefined'
-    ? globalThis.window?.dispatchEvent?.bind(globalThis.window)
-    : undefined;
-
-  // Create a mock window for event dispatching
-  if (typeof globalThis.window === 'undefined') {
-    (globalThis as Record<string, unknown>).window = {
-      dispatchEvent: (event: Event) => {
-        const customEvent = event as CustomEvent;
-        if (customEvent.type === 'hypersurge:game-quit') {
-          // Return to menu
-          setTimeout(() => showMenu(terminal), 100);
-        } else if (customEvent.type === 'hypersurge:random-game' || customEvent.type === 'hypersurge:games-menu') {
-          // Return to menu
-          setTimeout(() => showMenu(terminal), 100);
-        }
-        return true;
-      },
-      CustomEvent: CustomEvent,
-    };
-  } else if (originalDispatchEvent) {
-    const handler = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      if (customEvent.type.startsWith('hypersurge:')) {
-        setTimeout(() => showMenu(terminal), 100);
-      }
-    };
-    globalThis.window.addEventListener('hypersurge:game-quit', handler);
-    globalThis.window.addEventListener('hypersurge:random-game', handler);
-    globalThis.window.addEventListener('hypersurge:games-menu', handler);
-  }
-
-  // Run the game — cast terminal as any since it's API-compatible
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   game.run(terminal as any);
 }
@@ -311,7 +282,6 @@ function launchGame(terminal: NodeTerminal, game: GameInfo) {
 function main() {
   const args = process.argv.slice(2);
 
-  // Parse theme flag
   let theme: PhosphorMode = 'cyan';
   const themeIdx = args.indexOf('--theme');
   if (themeIdx !== -1 && args[themeIdx + 1]) {
@@ -319,6 +289,9 @@ function main() {
     args.splice(themeIdx, 2);
   }
   setTheme(theme);
+
+  const terminal = createNodeTerminal();
+  setupGameEvents(terminal);
 
   // Direct game launch: cli-games snake
   const gameName = args[0];
@@ -328,16 +301,13 @@ function main() {
       console.error(`Unknown game: ${gameName}`);
       console.error(`Available games: ${games.map(g => g.id).join(', ')}`);
       process.exit(1);
-      return; // unreachable, but helps TypeScript narrow the type
+      return;
     }
-    const terminal = createNodeTerminal();
     launchGame(terminal, game);
     return;
   }
 
-  // Interactive menu
-  const terminal = createNodeTerminal();
-  showMenu(terminal);
+  openMenu(terminal);
 }
 
 main();
