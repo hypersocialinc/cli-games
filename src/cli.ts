@@ -147,7 +147,8 @@ function createNodeTerminal(): NodeTerminal {
     const domEvent = createDomEvent(key);
 
     // Dispatch keydown on window (Tetris/Chopper use this)
-    const keydownEvent = Object.assign(new Event('keydown'), domEvent);
+    // Can't Object.assign onto Event (type is read-only getter), so use a plain object
+    const keydownEvent = { ...domEvent, type: 'keydown' } as unknown as Event;
     windowPolyfill.dispatchEvent(keydownEvent);
 
     // Simulate keyup after a short delay (no key-release in raw stdin)
@@ -155,7 +156,7 @@ function createNodeTerminal(): NodeTerminal {
       clearTimeout(heldKeys.get(key)!);
     }
     heldKeys.set(key, setTimeout(() => {
-      const keyupEvent = Object.assign(new Event('keyup'), { ...domEvent, type: 'keyup' });
+      const keyupEvent = { ...domEvent, type: 'keyup' } as unknown as Event;
       windowPolyfill.dispatchEvent(keyupEvent);
       heldKeys.delete(key);
     }, 80));
