@@ -286,8 +286,52 @@ function launchGame(terminal: NodeTerminal, game: GameInfo) {
 // Main
 // ---------------------------------------------------------------------------
 
+function printHelp() {
+  console.log(`
+  @hypersocial/cli-games — 18 terminal games
+
+  Usage:
+    cli-games                    Interactive game menu
+    cli-games <game>             Launch a game directly
+    cli-games --theme <theme>    Set color theme
+    cli-games --list             List all games
+    cli-games --help             Show this help
+
+  Games:
+    ${games.map(g => `${g.id.padEnd(16)} ${g.description}`).join('\n    ')}
+
+  Themes:
+    cyan (default), amber, green, white, hotpink, blood, ice,
+    bladerunner, tron, kawaii, oled, solarized, nord, highcontrast,
+    banana, cream — plus Light variants (e.g. cyanLight)
+
+  Controls:
+    Arrow keys / WASD    Move / navigate
+    Enter                Confirm / select
+    ESC                  Pause menu
+    Q                    Quit
+
+  Examples:
+    cli-games snake
+    cli-games tetris --theme green
+    cli-games --theme amber
+`);
+}
+
 function main() {
   const args = process.argv.slice(2);
+
+  if (args.includes('--help') || args.includes('-h')) {
+    printHelp();
+    process.exit(0);
+  }
+
+  if (args.includes('--list') || args.includes('-l')) {
+    for (const game of games) {
+      console.log(`  ${game.id.padEnd(16)} ${game.description}`);
+    }
+    process.exit(0);
+  }
 
   let theme: PhosphorMode = 'cyan';
   const themeIdx = args.indexOf('--theme');
