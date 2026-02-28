@@ -86,6 +86,7 @@ import { runTowerGame } from './tower';
 import { runTronGame } from './tron';
 import { runTypingTest } from './typingtest';
 import { runWordleGame } from './wordle';
+import { runHyperFighterGame } from './hyper-fighter';
 
 /**
  * Game registry with metadata
@@ -117,6 +118,7 @@ export const games: GameInfo[] = [
   { id: 'tron', name: 'Tron', description: 'Light cycle battle', run: runTronGame },
   { id: 'crack', name: 'Crack', description: 'Hack the system', run: runCrackGame },
   { id: 'chopper', name: 'Chopper', description: 'Deliver passengers', run: runCourierGame },
+  { id: 'hyper-fighter', name: 'Hyper Fighter', description: 'Gem battle vs AI', run: runHyperFighterGame },
 ];
 
 /**
@@ -164,6 +166,7 @@ export {
   runTronGame,
   runTypingTest,
   runWordleGame,
+  runHyperFighterGame,
 };
 
 // Re-export games menu
