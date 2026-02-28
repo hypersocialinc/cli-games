@@ -483,6 +483,10 @@ export async function vibeCommand(args: string[]) {
 
   p.intro('cli-games');
 
+  // Interactive update check — offer to update if outdated
+  const { checkForUpdateInteractive } = await import('./update-check');
+  await checkForUpdateInteractive();
+
   const repoRoot = await findOrSetupRepo();
   if (!repoRoot) {
     p.cancel('Cancelled.');

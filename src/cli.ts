@@ -373,5 +373,9 @@ if (cliArgs[0] === 'vibe' || cliArgs[0] === 'create') {
 } else if (cliArgs[0] === 'remove') {
   import('./create').then(m => m.removeCommand(cliArgs.slice(1)));
 } else {
-  main();
+  // Passive update check — print notice if outdated, then launch game
+  import('./update-check').then(m => m.checkForUpdatePassive()).then(notice => {
+    if (notice) process.stdout.write(notice);
+    main();
+  }).catch(() => main());
 }
