@@ -288,11 +288,14 @@ function launchGame(terminal: NodeTerminal, game: GameInfo) {
 
 function printHelp() {
   console.log(`
-  @hypersocial/cli-games — 18 terminal games
+  @hypersocial/cli-games — Terminal games
 
   Usage:
     cli-games                    Interactive game menu
     cli-games <game>             Launch a game directly
+    cli-games vibe               Developer hub (create, vibe code, play, remove, PR)
+    cli-games vibe <name>        Vibe code a game (creates it if new)
+    cli-games remove <name>      Remove a game
     cli-games --theme <theme>    Set color theme
     cli-games --list             List all games
     cli-games --help             Show this help
@@ -361,4 +364,14 @@ function main() {
   openMenu(terminal);
 }
 
-main();
+// ---------------------------------------------------------------------------
+// Entry — branch between developer commands and game runtime
+// ---------------------------------------------------------------------------
+const cliArgs = process.argv.slice(2);
+if (cliArgs[0] === 'vibe' || cliArgs[0] === 'create') {
+  import('./create').then(m => m.vibeCommand(cliArgs.slice(1)));
+} else if (cliArgs[0] === 'remove') {
+  import('./create').then(m => m.removeCommand(cliArgs.slice(1)));
+} else {
+  main();
+}
