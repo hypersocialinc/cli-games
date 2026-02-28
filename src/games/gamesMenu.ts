@@ -273,6 +273,11 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
 
       render();
 
+      // Redraw on terminal resize
+      const resizeListener = terminal.onResize(() => {
+        if (running) render();
+      });
+
       keyListener = terminal.onKey(({ domEvent }) => {
         if (!running) {
           keyListener?.dispose();
@@ -381,6 +386,7 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
       const originalStop = controller.stop;
       controller.stop = () => {
         keyListener?.dispose();
+        resizeListener.dispose();
         exitAlternateBuffer(terminal, 'games-menu-stop');
         originalStop();
       };
