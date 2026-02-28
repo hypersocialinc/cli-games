@@ -4,30 +4,47 @@
 
 **Snake, Tetris, 2048, Pong, Asteroids, Space Invaders, Breakout, Frogger, Tron, Minesweeper, Wordle, Hangman, Simon, Runner, Tower, Typing Test, Crack, Chopper.**
 
-## CLI Usage
+Originally built as easter eggs for [HyperSpaces](https://hyperspaces.dev) — the terminal for AI coding agents. Play games while your agents ship code.
+
+## Quick Start
 
 ```bash
-# Interactive menu
+# Play now — no install needed
 npx @hypersocial/cli-games
 
 # Launch a specific game
 npx @hypersocial/cli-games snake
-npx @hypersocial/cli-games tetris
 
-# Choose a color theme
-npx @hypersocial/cli-games --theme green
-npx @hypersocial/cli-games --theme amber snake
+# With a color theme
+npx @hypersocial/cli-games tetris --theme green
+```
+
+## Install
+
+```bash
+# Global install
+npm install -g @hypersocial/cli-games
+cli-games
+
+# Or as a project dependency (for xterm.js integration)
+npm install @hypersocial/cli-games
+```
+
+## CLI Usage
+
+```bash
+cli-games                    # Interactive game menu
+cli-games <game>             # Launch a game directly
+cli-games --theme <theme>    # Set color theme
+cli-games --list             # List all games
+cli-games --help             # Show help
 ```
 
 ### Available Themes
 
-`cyan` (default), `amber`, `green`, `white`, `hotpink`, `blood`, `ice`, `bladerunner`, `tron`, `kawaii`, `oled`, `solarized`, `nord`, `highcontrast`, `banana`, `cream`, and their light variants.
+`cyan` (default), `amber`, `green`, `white`, `hotpink`, `blood`, `ice`, `bladerunner`, `tron`, `kawaii`, `oled`, `solarized`, `nord`, `highcontrast`, `banana`, `cream`, and their light variants (e.g. `cyanLight`).
 
 ## Library Usage (xterm.js)
-
-```bash
-npm install @hypersocial/cli-games
-```
 
 ```typescript
 import { games, setTheme, runGame } from '@hypersocial/cli-games';
@@ -41,7 +58,7 @@ const controller = runGame('snake', terminal);
 // Stop the game
 controller?.stop();
 
-// Or use the games registry
+// Browse all games
 for (const game of games) {
   console.log(`${game.id}: ${game.name} - ${game.description}`);
 }
@@ -88,13 +105,21 @@ terminal.options.theme = xtermTheme;
 
 ## Controls
 
-- **Arrow keys** or **WASD** — Move/navigate
-- **Enter** — Confirm/select
+- **Arrow keys** or **WASD** — Move / navigate
+- **Enter** — Confirm / select
 - **ESC** — Pause menu
 - **Q** — Quit
+
+## About
+
+Built by [Selcuk Atli](https://x.com/selcukatli) at [HyperSocial App Studio](https://github.com/hypersocialinc).
+
+These games are the easter eggs inside [HyperSpaces](https://hyperspaces.dev), a terminal built for developers running multiple AI coding agents across multiple projects. Think Discord for your terminals — projects in the dock, branches as channels, agents side by side.
+
+## Contributing
+
+Contributions welcome via pull requests. Add a new game, improve an existing one, or fix a bug.
 
 ## License
 
 AGPL-3.0 — see [LICENSE](LICENSE) for details.
-
-Contributions welcome via pull requests.
