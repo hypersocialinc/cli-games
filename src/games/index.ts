@@ -181,3 +181,29 @@ export {
   runRebootEffect,
 } from './effects';
 export type { MatrixController, HackController, RebootController } from './effects';
+
+// Re-export shared game effects (particles, popups, shake, flash)
+export {
+  spawnParticles,
+  spawnFirework,
+  spawnSparkleTrail,
+  updateParticles,
+  addScorePopup,
+  updatePopups,
+  createShakeState,
+  triggerShake,
+  applyShake,
+  createFlashState,
+  triggerFlash,
+  updateFlash,
+  isFlashVisible,
+  MAX_PARTICLES,
+  PARTICLE_CHARS,
+  FIREWORK_COLORS,
+} from './shared/effects';
+export type {
+  Particle,
+  ScorePopup,
+  ScreenShakeState,
+  FlashState,
+} from './shared/effects';

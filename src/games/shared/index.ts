@@ -3,3 +3,4 @@
  */
 
 export * from './menu';
+export * from './effects';
