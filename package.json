@@ -1,6 +1,6 @@
 {
   "name": "@hypersocial/cli-games",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Terminal games for xterm.js and CLI — snake, 2048, pong, asteroids, tetris, and more",
   "license": "AGPL-3.0",
   "type": "module",
