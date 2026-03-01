@@ -87,6 +87,7 @@ import { runTronGame } from './tron';
 import { runTypingTest } from './typingtest';
 import { runWordleGame } from './wordle';
 import { runHyperFighterGame } from './hyper-fighter';
+import { runTerminalDoomGame } from './terminal-doom';
 
 /**
  * Game registry with metadata
@@ -119,6 +120,7 @@ export const games: GameInfo[] = [
   { id: 'crack', name: 'Crack', description: 'Hack the system', run: runCrackGame },
   { id: 'chopper', name: 'Chopper', description: 'Deliver passengers', run: runCourierGame },
   { id: 'hyper-fighter', name: 'Hyper Fighter', description: 'Gem battle vs AI', run: runHyperFighterGame },
+  { id: 'terminal-doom', name: 'Terminal Doom', description: 'First-person raycaster', run: runTerminalDoomGame },
 ];
 
 /**
@@ -167,6 +169,7 @@ export {
   runTypingTest,
   runWordleGame,
   runHyperFighterGame,
+  runTerminalDoomGame,
 };
 
 // Re-export games menu
