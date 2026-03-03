@@ -38,6 +38,8 @@ if (typeof globalThis.window === 'undefined') {
   (globalThis as Record<string, unknown>).window = windowPolyfill;
 }
 
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 // Now safe to import game code
 import { games, setTheme, showGamesMenu, type GameInfo, GAME_EVENTS } from './games';
 import type { PhosphorMode } from './themes';
@@ -271,9 +273,36 @@ function openMenu(terminal: NodeTerminal) {
       const game = games.find(g => g.id === gameId);
       if (game) launchGame(terminal, game);
     },
+    onActionSelect: (actionId: string) => {
+      if (actionId !== 'vibe') return;
+      launchVibeFromMenu();
+    },
     onQuit: () => {
       process.exit(0);
     },
+  });
+}
+
+function launchVibeFromMenu() {
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false);
+  }
+  process.stdin.pause();
+  process.stdout.write('\x1b[?25h');
+  process.stdout.write('\x1b[0m');
+
+  const cliPath = fileURLToPath(import.meta.url);
+  const child = spawn(process.execPath, [cliPath, 'vibe'], {
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  child.on('close', (code) => {
+    process.exit(code ?? 0);
+  });
+  child.on('error', () => {
+    console.error('Failed to launch vibe command');
+    process.exit(1);
   });
 }
 

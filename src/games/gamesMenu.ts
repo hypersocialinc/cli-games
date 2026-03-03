@@ -17,7 +17,13 @@ export interface GamesMenuController {
 
 export interface GamesMenuOptions {
   onGameSelect?: (gameId: string) => void;
+  onActionSelect?: (actionId: string) => void;
   onQuit?: () => void;
+  extraActions?: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
 }
 
 /**
@@ -28,9 +34,13 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
   const options: GamesMenuOptions = typeof optionsOrCallback === 'function'
     ? { onGameSelect: optionsOrCallback }
     : optionsOrCallback || {};
-  const { onGameSelect, onQuit } = options;
+  const { onGameSelect, onActionSelect, onQuit, extraActions = [] } = options;
   const themeColor = getCurrentThemeColor();
   const lightTheme = isLightTheme();
+  const menuEntries = [
+    ...games.map(game => ({ ...game, kind: 'game' as const })),
+    ...extraActions.map(action => ({ ...action, kind: 'action' as const })),
+  ];
 
   let running = true;
   let selectedIndex = 0;
@@ -92,18 +102,18 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
   ): void {
     let output = baseOutput;
     const boxX = Math.floor((cols - boxWidth) / 2);
-    const visibleGames = Math.min(maxVisibleGames, games.length);
+    const visibleEntries = Math.min(maxVisibleGames, menuEntries.length);
 
     // Adjust scroll offset to keep selected item visible
     if (selectedIndex < scrollOffset) {
       scrollOffset = selectedIndex;
-    } else if (selectedIndex >= scrollOffset + visibleGames) {
-      scrollOffset = selectedIndex - visibleGames + 1;
+    } else if (selectedIndex >= scrollOffset + visibleEntries) {
+      scrollOffset = selectedIndex - visibleEntries + 1;
     }
-    scrollOffset = Math.max(0, Math.min(scrollOffset, games.length - visibleGames));
+    scrollOffset = Math.max(0, Math.min(scrollOffset, menuEntries.length - visibleEntries));
 
     const hasScrollUp = scrollOffset > 0;
-    const hasScrollDown = scrollOffset + visibleGames < games.length;
+    const hasScrollDown = scrollOffset + visibleEntries < menuEntries.length;
 
     // Top border
     const topScrollIndicator = hasScrollUp ? ' \u25b2 more ' : '\u2550'.repeat(8);
@@ -113,17 +123,17 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     output += `\x1b[${listStartY};${boxX}H${themeColor}\u2554${'\u2550'.repeat(topLeftPad)}${hasScrollUp ? '\x1b[33m' : ''}${topScrollIndicator}${hasScrollUp ? themeColor : ''}${'\u2550'.repeat(topRightPad)}\u2557\x1b[0m`;
 
     // Render visible games
-    for (let vi = 0; vi < visibleGames; vi++) {
+    for (let vi = 0; vi < visibleEntries; vi++) {
       const i = scrollOffset + vi;
-      const game = games[i];
+      const entry = menuEntries[i];
       const y = listStartY + 1 + vi * 2;
       const isSelected = i === selectedIndex;
 
-      output += renderGameEntry(game, i, isSelected, y, boxX, boxWidth);
+      output += renderEntry(entry, i, isSelected, y, boxX, boxWidth);
     }
 
     // Bottom border
-    const bottomY = listStartY + 1 + visibleGames * 2;
+    const bottomY = listStartY + 1 + visibleEntries * 2;
     const bottomScrollIndicator = hasScrollDown ? ' \u25bc more ' : '\u2550'.repeat(8);
     const bottomBorderWidth = boxWidth - 2 - bottomScrollIndicator.length;
     const bottomLeftPad = Math.floor(bottomBorderWidth / 2);
@@ -131,6 +141,12 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     output += `\x1b[${bottomY};${boxX}H${themeColor}\u255a${'\u2550'.repeat(bottomLeftPad)}${hasScrollDown ? '\x1b[33m' : ''}${bottomScrollIndicator}${hasScrollDown ? themeColor : ''}${'\u2550'.repeat(bottomRightPad)}\u255d\x1b[0m`;
 
     // Controls
+    if (onActionSelect) {
+      const actionHint = 'Press V to Vibe Code Your Own Game';
+      const hintX = Math.floor((cols - actionHint.length) / 2);
+      const ctaStyle = lightTheme ? '\x1b[1;30;106m' : '\x1b[1;30;103m';
+      output += `\x1b[${rows};${hintX}H${ctaStyle}${actionHint}\x1b[0m`;
+    }
     const controls = `\u2191\u2193 Navigate | ENTER Select | 1-9 Quick | Q Quit`;
     output += `\x1b[${rows - 1};${Math.floor((cols - controls.length) / 2)}H\x1b[2m${controls}\x1b[0m`;
 
@@ -149,20 +165,20 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     let output = baseOutput;
 
     // With 2 columns, we can show 2x as many games
-    const gamesPerColumn = Math.min(maxVisibleGames, Math.ceil(games.length / 2));
+    const entriesPerColumn = Math.min(maxVisibleGames, Math.ceil(menuEntries.length / 2));
 
     // Calculate scroll based on rows of 2 games
     const selectedRow = Math.floor(selectedIndex / 2);
     if (selectedRow < scrollOffset) {
       scrollOffset = selectedRow;
-    } else if (selectedRow >= scrollOffset + gamesPerColumn) {
-      scrollOffset = selectedRow - gamesPerColumn + 1;
+    } else if (selectedRow >= scrollOffset + entriesPerColumn) {
+      scrollOffset = selectedRow - entriesPerColumn + 1;
     }
-    const maxScroll = Math.max(0, Math.ceil(games.length / 2) - gamesPerColumn);
+    const maxScroll = Math.max(0, Math.ceil(menuEntries.length / 2) - entriesPerColumn);
     scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
 
     const hasScrollUp = scrollOffset > 0;
-    const hasScrollDown = (scrollOffset + gamesPerColumn) * 2 < games.length;
+    const hasScrollDown = (scrollOffset + entriesPerColumn) * 2 < menuEntries.length;
 
     // Calculate positions for two columns
     const totalWidth = boxWidth * 2 + columnGap;
@@ -180,14 +196,14 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     output += `\x1b[${listStartY};${rightBoxX}H${themeColor}\u2554${'\u2550'.repeat(topLeft)}${hasScrollUp ? '\x1b[33m' : ''}${topScrollIndicator}${hasScrollUp ? themeColor : ''}${'\u2550'.repeat(topRight)}\u2557\x1b[0m`;
 
     // Render games in two columns
-    for (let row = 0; row < gamesPerColumn; row++) {
+    for (let row = 0; row < entriesPerColumn; row++) {
       const leftIdx = (scrollOffset + row) * 2;
       const rightIdx = leftIdx + 1;
       const y = listStartY + 1 + row * 2;
 
       // Left column
-      if (leftIdx < games.length) {
-        output += renderGameEntry(games[leftIdx], leftIdx, leftIdx === selectedIndex, y, leftBoxX, boxWidth);
+      if (leftIdx < menuEntries.length) {
+        output += renderEntry(menuEntries[leftIdx], leftIdx, leftIdx === selectedIndex, y, leftBoxX, boxWidth);
       } else {
         // Empty slot
         output += `\x1b[${y};${leftBoxX}H${themeColor}\u2551${' '.repeat(boxWidth - 2)}\u2551\x1b[0m`;
@@ -195,8 +211,8 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
       }
 
       // Right column
-      if (rightIdx < games.length) {
-        output += renderGameEntry(games[rightIdx], rightIdx, rightIdx === selectedIndex, y, rightBoxX, boxWidth);
+      if (rightIdx < menuEntries.length) {
+        output += renderEntry(menuEntries[rightIdx], rightIdx, rightIdx === selectedIndex, y, rightBoxX, boxWidth);
       } else {
         // Empty slot
         output += `\x1b[${y};${rightBoxX}H${themeColor}\u2551${' '.repeat(boxWidth - 2)}\u2551\x1b[0m`;
@@ -205,7 +221,7 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     }
 
     // Bottom borders
-    const bottomY = listStartY + 1 + gamesPerColumn * 2;
+    const bottomY = listStartY + 1 + entriesPerColumn * 2;
     const bottomScrollIndicator = hasScrollDown ? ' \u25bc ' : '\u2550\u2550\u2550';
     const bottomBorderContent = boxWidth - 2 - bottomScrollIndicator.length;
     const bottomLeft = Math.floor(bottomBorderContent / 2);
@@ -215,14 +231,20 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     output += `\x1b[${bottomY};${rightBoxX}H${themeColor}\u255a${'\u2550'.repeat(bottomLeft)}${hasScrollDown ? '\x1b[33m' : ''}${bottomScrollIndicator}${hasScrollDown ? themeColor : ''}${'\u2550'.repeat(bottomRight)}\u255d\x1b[0m`;
 
     // Controls
+    if (onActionSelect) {
+      const actionHint = 'Press V to Vibe Code Your Own Game';
+      const hintX = Math.floor((cols - actionHint.length) / 2);
+      const ctaStyle = lightTheme ? '\x1b[1;30;106m' : '\x1b[1;30;103m';
+      output += `\x1b[${rows};${hintX}H${ctaStyle}${actionHint}\x1b[0m`;
+    }
     const controls = `\u2191\u2193\u2190\u2192 Navigate | ENTER Select | 1-9 Quick | Q Quit`;
     output += `\x1b[${rows - 1};${Math.floor((cols - controls.length) / 2)}H\x1b[2m${controls}\x1b[0m`;
 
     terminal.write(output);
   }
 
-  function renderGameEntry(
-    game: typeof games[number],
+  function renderEntry(
+    entry: typeof menuEntries[number],
     index: number,
     isSelected: boolean,
     y: number,
@@ -239,13 +261,13 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
     const keyDisplay = keyNum <= 9 ? `${keyNum}` : ' ';
 
     // Build the line content
-    const lineContent = `${prefix} [${keyDisplay}] ${game.name}`;
+    const lineContent = `${prefix} [${keyDisplay}] ${entry.name}`;
     const padding = Math.max(0, contentWidth - lineContent.length);
 
     output += `\x1b[${y};${boxX}H${themeColor}\u2551\x1b[0m${highlight}${keyColor}${lineContent}${' '.repeat(padding)}\x1b[0m${themeColor}\u2551\x1b[0m`;
 
     // Description line
-    const descContent = `    ${game.description}`;
+    const descContent = `    ${entry.description}`;
     const descPadding = Math.max(0, contentWidth - descContent.length);
     const descColor = isSelected ? (lightTheme ? '\x1b[2;7;97m' : '\x1b[2;7m') : '\x1b[2m';
 
@@ -312,16 +334,16 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
             if (useTwoColumns) {
               selectedIndex = Math.max(0, selectedIndex - 2);
             } else {
-              selectedIndex = (selectedIndex - 1 + games.length) % games.length;
+              selectedIndex = (selectedIndex - 1 + menuEntries.length) % menuEntries.length;
             }
             render();
             return;
           }
           if (key === 'ArrowDown') {
             if (useTwoColumns) {
-              selectedIndex = Math.min(games.length - 1, selectedIndex + 2);
+              selectedIndex = Math.min(menuEntries.length - 1, selectedIndex + 2);
             } else {
-              selectedIndex = (selectedIndex + 1) % games.length;
+              selectedIndex = (selectedIndex + 1) % menuEntries.length;
             }
             render();
             return;
@@ -334,46 +356,59 @@ export function showGamesMenu(terminal: Terminal, optionsOrCallback?: GamesMenuO
             return;
           }
           if (key === 'ArrowRight' && useTwoColumns) {
-            if (selectedIndex % 2 === 0 && selectedIndex + 1 < games.length) {
+            if (selectedIndex % 2 === 0 && selectedIndex + 1 < menuEntries.length) {
               selectedIndex++;
             }
             render();
             return;
           }
 
-          // Helper to launch game with transition
-          const launchGame = async (game: typeof games[number]) => {
+          // Global action shortcut(s)
+          if (keyLower === 'v' && onActionSelect) {
+            keyListener?.dispose();
+            running = false;
+            exitAlternateBuffer(terminal, 'games-menu-vibe');
+            onActionSelect('vibe');
+            return;
+          }
+
+          // Helper to launch entry
+          const launchEntry = async (entry: typeof menuEntries[number]) => {
             keyListener?.dispose();
             running = false;
             // Exit alternate buffer BEFORE transition so menu stops drawing
             exitAlternateBuffer(terminal, 'games-menu-launch');
 
             try {
-              await playSelectTransition(terminal, game.name);
-              if (onGameSelect) {
-                onGameSelect(game.id);
+              if (entry.kind === 'game') {
+                await playSelectTransition(terminal, entry.name);
+                if (onGameSelect) {
+                  onGameSelect(entry.id);
+                }
+              } else if (onActionSelect) {
+                onActionSelect(entry.id);
               }
             } catch (err) {
-              console.error('[GamesMenu] Failed to launch game:', err);
+              console.error('[GamesMenu] Failed to launch menu entry:', err);
               // Ensure terminal is in usable state on error
               forceExitAlternateBuffer(terminal, 'games-menu-launch-error');
-              terminal.write(`\x1b[91mError launching game: ${err}\x1b[0m\r\n`);
+              terminal.write(`\x1b[91mError launching menu entry: ${err}\x1b[0m\r\n`);
             }
           };
 
           // Select
           if (key === 'Enter') {
-            launchGame(games[selectedIndex]).catch(err => {
-              console.error('[GamesMenu] Unhandled launch error:', err);
+            launchEntry(menuEntries[selectedIndex]).catch(err => {
+              console.error('[GamesMenu] Unhandled menu launch error:', err);
             });
             return;
           }
 
           // Quick select by number (1-9)
           const numKey = parseInt(key);
-          if (numKey >= 1 && numKey <= games.length && numKey <= 9) {
-            launchGame(games[numKey - 1]).catch(err => {
-              console.error('[GamesMenu] Unhandled launch error:', err);
+          if (numKey >= 1 && numKey <= menuEntries.length && numKey <= 9) {
+            launchEntry(menuEntries[numKey - 1]).catch(err => {
+              console.error('[GamesMenu] Unhandled menu launch error:', err);
             });
             return;
           }

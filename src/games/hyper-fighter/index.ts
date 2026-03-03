@@ -91,7 +91,7 @@ export interface HyperFighterController {
 
 const TICK_MS = 50; // 20 FPS
 const MIN_COLS = 60;
-const MIN_ROWS = 36;
+const MIN_ROWS = 30;
 const VS_COL_WIDTH = 12;
 const SIDE_PANEL_WIDTH = 14;
 const HEADER_HEIGHT = 2;

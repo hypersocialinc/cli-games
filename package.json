@@ -1,6 +1,6 @@
 {
   "name": "@hypersocial/cli-games",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Terminal games for xterm.js and CLI — snake, 2048, pong, asteroids, tetris, and more",
   "license": "AGPL-3.0",
   "type": "module",
@@ -25,6 +25,8 @@
   ],
   "scripts": {
     "build": "tsup",
+    "start": "sh -c 'if [ ! -f dist/cli.js ] || find src -type f -newer dist/cli.js | read; then npm run build; fi; node dist/cli.js \"$@\"' --",
+    "start:build": "npm run build && npm run start",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
